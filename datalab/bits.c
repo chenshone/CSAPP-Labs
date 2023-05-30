@@ -164,9 +164,11 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-    int y = x + 1;
-    x = x + y;
-    x = ~x;
+    int y = x + 1; // 0x7fffffff + 1 => 0x80000000 变负数
+    x = x + y; // 0x7fffffff + 0x80000000 => 0xffffffff => -1
+    x = ~x; // 0xffffffff => 0x00000000
+    y = !y; // 排除 x = 0xffffffff的情况
+    x = x + y; // 排除 x = 0xffffffff的情况
     return !x;
 }
 
@@ -179,7 +181,9 @@ int isTmax(int x) {
  *   Rating: 2
  */
 int allOddBits(int x) {
-    return !(x & 0x1);
+    int mask = 0xAA + (0xAA << 8);
+    mask = mask + (mask << 16);
+    return !((mask & x) ^ mask);
 }
 
 /*
@@ -203,12 +207,14 @@ int negate(int x) {
  *   Rating: 3
  */
 int isAsciiDigit(int x) {
-    int high_bits = x >> 6;
-    int low_bits = x & 0x3f;
-    int is_3x = !((low_bits >> 4) ^ 0x3);
-    int is_less_8 = !(x & 0x8);
-
-    return (!high_bits) & is_3x & (is_less_8 | (!(low_bits & 0x2) & !(low_bits & 0x4)));
+    int sign = 0x1 << 31;
+    int upperBound = ~(sign | 0x39);
+    int lowerBound = ~0x30;
+    // x如果大于0x39，那么upperBound + x 上溢为负数
+    upperBound = sign & (upperBound + x) >> 31;
+    // x如果小于0x30，那么lowerBound + x 依然为负数，否则符号位变成0
+    lowerBound = sign & (lowerBound + 1 + x) >> 31;
+    return !(upperBound | lowerBound); // 若不在范围内，upperBound和lowerBound至少有一个为1
 }
 
 /*
@@ -259,10 +265,10 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4 
  */
 int logicalNeg(int x) {
-    int neg_x = ~x + 1;
-    int sign_x = x >> 31;
-    int sign_neg_x = neg_x >> 31;
-    return sign_x ^ sign_neg_x ^ 0x1;
+    // x为非0时，x和-x的符号位相反，或为1
+    // x为0时，x和-x的符号位相同，或为0
+    // 最小负数是特例，0x80000000，取反加一后还是本身，符号位都是1，或刚好也是1
+    return ((x | (~x + 1)) >> 31) + 1;
 }
 
 /* howManyBits - return the minimum number of bits required to represent x in
